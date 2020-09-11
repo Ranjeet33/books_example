@@ -42,7 +42,7 @@ func put(reqbody []byte) string {
 			arr[i] = t
 		}
 	}
-	return "data set"
+	return "data replaced"
 }
 func patch(reqbody []byte) string {
 	var t book
@@ -61,7 +61,7 @@ func patch(reqbody []byte) string {
 			}
 		}
 	}
-	return "ok"
+	return "patch updated"
 }
 
 func addCookie(w http.ResponseWriter, name, value string, ttl time.Duration) {
