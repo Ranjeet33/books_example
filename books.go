@@ -2,10 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"io/ioutil"
 	"net/http"
-	"time"
 )
 
 type book struct {
@@ -15,100 +13,170 @@ type book struct {
 	Date        string `json:"date"`
 }
 
-var arr = []book{}
+var books []book
 
-func get(e *book) string {
-	return (e.ID + e.Name + e.Description + e.Date)
-}
-
-func post(reqbody []byte) string {
-	var t book
-	err := json.Unmarshal(reqbody, &t)
+func getAllBooks(w http.ResponseWriter, r *http.Request) {
+	Books, err := json.Marshal(books)
 	if err != nil {
 		panic(err)
 	}
-	arr = append(arr, t)
-	return t.ID
+	w.Write(Books)
 }
 
-func put(reqbody []byte) string {
-	var t book
-	err := json.Unmarshal(reqbody, &t)
-	if err != nil {
-		panic(err)
-	}
-	for i := 0; i < len(arr); i++ {
-		if t.ID == arr[i].ID {
-			arr[i] = t
-		}
-	}
-	return "data replaced"
-}
-func patch(reqbody []byte) string {
-	var t book
-	err := json.Unmarshal(reqbody, &t)
-	if err != nil {
-		panic(err)
-	}
-	for i := 0; i < len(arr); i++ {
-		if t.ID == arr[i].ID {
-			if t.Name != arr[i].Name {
-				arr[i].Name = t.Name
-			} else if t.Description != arr[i].Description {
-				arr[i].Description = t.Description
-			} else if t.Date != arr[i].Date {
-				arr[i].Date = t.Date
-			}
-		}
-	}
-	return "patch updated"
-}
-
-func addCookie(w http.ResponseWriter, name, value string, ttl time.Duration) {
-	expire := time.Now().Add(ttl)
-	cookie := http.Cookie{
-		Name:    name,
-		Value:   value,
-		Expires: expire,
-	}
-	http.SetCookie(w, &cookie)
-}
-
-func hello(w http.ResponseWriter, r *http.Request) {
+func getBook(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
+		var Book book
 		key := "id"
 		val := r.URL.Query().Get(key)
-		for i := 0; i < len(arr); i++ {
-			if val == arr[i].ID {
-				io.WriteString(w, get(&arr[i]))
+		index := 0
+		for i := 0; i < len(books); i++ {
+			if val == books[i].ID {
+				Book = books[i]
+				index = i
 			}
 		}
-	} else if r.Method == "POST" {
-		reqbody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			panic(err)
+		if val != books[index].ID {
+			w.Write([]byte("400 INVALID_ARGUMENT</br>Invalid ID"))
+		} else {
+			sbook, err := json.Marshal(Book)
+			if err != nil {
+				panic(err)
+			}
+			w.Write(sbook)
 		}
-		io.WriteString(w, post(reqbody))
-	} else if r.Method == "PUT" {
-		reqbody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			panic(err)
-		}
-		io.WriteString(w, put(reqbody))
-	} else if r.Method == "PATCH" {
-		reqbody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			panic(err)
-		}
-		io.WriteString(w, patch(reqbody))
-	} else {
-		io.WriteString(w, "404 page not found")
 	}
-	addCookie(w, "TestCookieName", "TestValue", 30*time.Minute)
+}
 
+func createNewBook(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		reqBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			panic(err)
+		}
+		var newBook book
+		err = json.Unmarshal(reqBody, &newBook)
+		if err != nil {
+			panic(err)
+		}
+		var con = true
+		for i := 0; i < len(books); i++ {
+			if newBook.ID == books[i].ID {
+				con = false
+			}
+		}
+		if con == true {
+			books = append(books, newBook)
+			book, err := json.Marshal(newBook)
+			if err != nil {
+				panic(err)
+			}
+			w.Write(book)
+		} else {
+			w.Write([]byte("409 ALREADY_EXISTS"))
+		}
+	}
+}
+func updateBook(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "PUT" {
+		reqBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			panic(err)
+		}
+		var newBook book
+		index := 0
+		err = json.Unmarshal(reqBody, &newBook)
+		if err != nil {
+			panic(err)
+		}
+
+		key := "id"
+		val := r.URL.Query().Get(key)
+		for i := 0; i < len(books); i++ {
+			if val == books[i].ID {
+				books[i] = newBook
+				val = books[i].ID
+				index = i
+			}
+		}
+		if val == books[index].ID {
+			book, err := json.Marshal(newBook)
+			if err != nil {
+				panic(err)
+			}
+			w.Write(book)
+		} else {
+			w.Write([]byte("404 NOT_FOUND</br>ID not found"))
+		}
+	} else if r.Method == "PATCH" {
+		reqBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			panic(err)
+		}
+		var newBook book
+		index := 0
+		err = json.Unmarshal(reqBody, &newBook)
+		if err != nil {
+			panic(err)
+		}
+
+		key := "id"
+		val := r.URL.Query().Get(key)
+		for i := 0; i < len(books); i++ {
+			if val == books[i].ID {
+				if newBook.ID != books[i].ID {
+					if newBook.ID != "" {
+						books[i].ID = newBook.ID
+					}
+				}
+				if newBook.Name != books[i].Name {
+					if newBook.Name != "" {
+						books[i].Name = newBook.Name
+					}
+				}
+				if newBook.Description != books[i].Description {
+					if newBook.Description != "" {
+						books[i].Description = newBook.Description
+					}
+				}
+				if newBook.Date != books[i].Date {
+					if newBook.Date != "" {
+						books[i].Date = newBook.Date
+					}
+				}
+
+				val = books[i].ID
+				index = i
+			}
+		}
+		if val == books[index].ID {
+			book, err := json.Marshal(books[index])
+			if err != nil {
+				panic(err)
+			}
+			w.Write(book)
+		} else {
+			w.Write([]byte("404 NOT_FOUND</br>ID not found"))
+		}
+	}
+}
+func deleteBook(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "DELETE" {
+		key := "id"
+		val := r.URL.Query().Get(key)
+
+		for index, book := range books {
+			if val == book.ID {
+				books = append(books[:index], books[index+1:]...)
+			}
+		}
+	}
 }
 
 func main() {
-	http.HandleFunc("/", hello)
+	http.HandleFunc("/books", getAllBooks)
+	http.HandleFunc("/books/", getBook)
+	http.HandleFunc("/book", createNewBook)
+	http.HandleFunc("/books/d", deleteBook)
+	http.HandleFunc("/book/", updateBook)
 	http.ListenAndServe(":8000", nil)
 }
