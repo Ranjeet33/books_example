@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
@@ -16,14 +17,20 @@ type book struct {
 var books []book
 
 func getAllBooks(w http.ResponseWriter, r *http.Request) {
-	Books, err := json.Marshal(books)
-	if err != nil {
-		panic(err)
+	if r.Method == "GET" {
+		Books, err := json.Marshal(books)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(Books)
 	}
-	w.Write(Books)
 }
 
 func getBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	if r.Method == "GET" {
 		var Book book
 		key := "id"
@@ -36,27 +43,33 @@ func getBook(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if val != books[index].ID {
-			w.Write([]byte("400 INVALID_ARGUMENT</br>Invalid ID"))
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Invalid ID"))
 		} else {
 			sbook, err := json.Marshal(Book)
 			if err != nil {
-				panic(err)
+				log.Println(err)
+				return
 			}
+			w.WriteHeader(http.StatusOK)
 			w.Write(sbook)
 		}
 	}
 }
 
 func createNewBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	if r.Method == "POST" {
 		reqBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			return
 		}
 		var newBook book
 		err = json.Unmarshal(reqBody, &newBook)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			return
 		}
 		var con = true
 		for i := 0; i < len(books); i++ {
@@ -68,25 +81,30 @@ func createNewBook(w http.ResponseWriter, r *http.Request) {
 			books = append(books, newBook)
 			book, err := json.Marshal(newBook)
 			if err != nil {
-				panic(err)
+				log.Println(err)
+				return
 			}
 			w.Write(book)
 		} else {
-			w.Write([]byte("409 ALREADY_EXISTS"))
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte("ALREADY_EXISTS"))
 		}
 	}
 }
 func updateBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	if r.Method == "PUT" {
 		reqBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			return
 		}
 		var newBook book
 		index := 0
 		err = json.Unmarshal(reqBody, &newBook)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			return
 		}
 
 		key := "id"
@@ -101,22 +119,26 @@ func updateBook(w http.ResponseWriter, r *http.Request) {
 		if val == books[index].ID {
 			book, err := json.Marshal(newBook)
 			if err != nil {
-				panic(err)
+				log.Println(err)
+				return
 			}
 			w.Write(book)
 		} else {
-			w.Write([]byte("404 NOT_FOUND</br>ID not found"))
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("ID not found"))
 		}
 	} else if r.Method == "PATCH" {
 		reqBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			return
 		}
 		var newBook book
 		index := 0
 		err = json.Unmarshal(reqBody, &newBook)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			return
 		}
 
 		key := "id"
@@ -151,11 +173,13 @@ func updateBook(w http.ResponseWriter, r *http.Request) {
 		if val == books[index].ID {
 			book, err := json.Marshal(books[index])
 			if err != nil {
-				panic(err)
+				log.Println(err)
+				return
 			}
 			w.Write(book)
 		} else {
-			w.Write([]byte("404 NOT_FOUND</br>ID not found"))
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("ID not found"))
 		}
 	}
 }
@@ -172,11 +196,22 @@ func deleteBook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func collectionBook(w http.ResponseWriter, r *http.Request) {
+	getAllBooks(w, r)
+	createNewBook(w, r)
+}
+func manageBook(w http.ResponseWriter, r *http.Request) {
+
+	getBook(w, r)
+	deleteBook(w, r)
+	updateBook(w, r)
+}
+
 func main() {
-	http.HandleFunc("/books", getAllBooks)
-	http.HandleFunc("/books/", getBook)
-	http.HandleFunc("/book", createNewBook)
-	http.HandleFunc("/books/d", deleteBook)
-	http.HandleFunc("/book/", updateBook)
-	http.ListenAndServe(":8000", nil)
+	http.HandleFunc("/books", collectionBook)
+	http.HandleFunc("/books/", manageBook)
+	err := http.ListenAndServe(":8000", nil)
+	if err != nil {
+		log.Println(err)
+	}
 }
